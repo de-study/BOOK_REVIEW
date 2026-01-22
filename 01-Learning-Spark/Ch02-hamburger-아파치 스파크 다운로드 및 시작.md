@@ -55,13 +55,19 @@ select() 나 filter() 같은 연산은 원본 데이터 프레임을 수정하�
 
 스파크는 리니지에 각 트랜스포메이션을 기록해놓고 데이터 프레임들은 트랜스포메이션을 거치는 동안 변하지 않기 때문에 단순히 기록된 리니지를 재실행하는 것만으로도 원래 상태를 다시 만들어 낼 수 있으며 이 덕분에 장애 상황에도 유연성을 확보할 수 있다.
 
-트랜스포메이션	액션
-orderBy()	show()
-groupBy()	take()
-filter()	count()
-select()	collect()
-join()	save()
- 
+트랜스포메이션	
+orderBy()	
+groupBy()
+filter()	
+select()	
+join()	
+
+액션
+show()
+take()
+count()
+collect()
+save()
 
 ## 좁은/넓은 트랜스포메이션
 트랜스포메이션은 스파크가 지연 평가하는 연산 종류이다.
