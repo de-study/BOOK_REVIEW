@@ -1,4 +1,4 @@
-# 스파크 애플리케이션 개념
+# 01.스파크 애플리케이션 개념
 
 ### Spark session
 > 여기서 중요한 개념이 스파크 session이다 session은 스파크 job과 그것을 실행할 클러스터의 연결지점이자 실행시 필요한 메타데이터를 지정해주는 역할을 함.
@@ -118,3 +118,132 @@ df.filter(...).map(...).groupBy(...).agg(...)
 
 예시:
 - 데이터가 100개 파티션 → Stage당 100개 Task 생성
+---
+
+<br><br><br> 
+# 02. 스파크 연산 종류
+- Transformation(트랜스포메이션)
+- Action(액션)
+
+### 트랜스포메이션
+- 원본 데이터의 값을 변형하지 않고 처리하는 연산들
+- 결과적으로 DF -> (트랜스포메이션) -> DF'
+- select(), filter() 등
+- 특징
+  - Lazy evaluation : 최적화 작업을 계획하기 위해 action에서 실행됨(shell환경일지라도)
+  - lineage 형성 : 여러 트랜스포메이션 작업들의 순서를 DAG방식으로 기록해서(연산만 추가)
+    - 장애 상황에도 대응가능
+```
+# Narrow Transformation (Shuffle 없음, 빠름)
+df.select("name", "age")        # 컬럼 선택
+df.filter(col("age") > 20)      # 필터링
+df.map(lambda x: x * 2)         # 각 요소 변환
+df.withColumn("new", col("old") * 2)  # 컬럼 추가
+
+# Wide Transformation (Shuffle 발생, 느림)
+df.groupBy("city")              # 그룹핑
+df.join(other_df, "key")        # 조인
+df.distinct()                   # 중복 제거
+df.repartition(10)              # 파티션 재분배
+df.orderBy("age")               # 정렬
+```
+- 종류
+
+| 분류 | 연산 | 설명 | Shuffle 여부 | 성능 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Narrow** | `select()` | 특정 컬럼 선택 | X | 빠름 |
+| **Narrow** | `filter()` | 조건에 맞는 데이터 필터링 | X | 빠름 |
+| **Narrow** | `map()` | 각 요소를 1:1로 변환 | X | 빠름 |
+| **Narrow** | `flatMap()` | 각 요소를 분리하여 여러 개로 확장 | X | 빠름 |
+| **Narrow** | `withColumn()` | 컬럼 추가 또는 기존 컬럼 수정 | X | 빠름 |
+| **Narrow** | `drop()` | 특정 컬럼 삭제 | X | 빠름 |
+| **Narrow** | `union()` | 두 DataFrame을 하나로 합침 | X | 빠름 |
+| **Wide** | `groupBy()` | 지정된 키를 기준으로 그룹핑 | O | 느림 |
+| **Wide** | `join()` | 두 데이터셋을 특정 키로 조인 | O | 느림 |
+| **Wide** | `distinct()` | 중복 데이터 제거 | O | 느림 |
+| **Wide** | `repartition()` | 파티션 개수 재분배 | O | 느림 |
+| **Wide** | `orderBy()` | 데이터를 특정 기준으로 정렬 | O | 느림 |
+| **Wide** | `reduceByKey()` | 키별로 데이터를 모아 집계 연산 | O | 느림 |
+
+- Transformation 분류
+  - Narrow Transformation
+    - Shuffle 없음
+    - 파티션 간 데이터 이동 불필요
+    - 각 파티션 독립적 처리
+    - 빠름
+    예시: map, filter, select, union
+  
+  - Wide Transformation
+    - Shuffle 발생
+    - 파티션 간 데이터 교환 필요
+    - 네트워크 I/O 발생
+    - 느림
+    예시: groupBy, join, distinct, repartition
+   
+<br> 
+
+### 액션  
+- Action은 Transformation으로 구성된 계보(Lineage)를 실제로 실행하며, 결과를 드라이버로 반환하거나 외부 저장소에 기록.
+- 특징
+  - Eager: 즉시 실행
+  - Job 생성: Spark 작업 시작
+  - 결과값 리턴: Driver로 데이터 반환 또는 저장
+- 예시
+```
+# Driver로 데이터 수집
+df.collect()                    # 전체 데이터 리스트로
+df.take(10)                     # 상위 10개만
+df.first()                      # 첫 번째 Row
+df.head(5)                      # 상위 5개
+
+# 집계 연산
+df.count()                      # 개수 세기
+df.reduce(lambda a,b: a+b)      # 누적 연산
+
+# 출력
+df.show(20)                     # 콘솔 출력
+df.foreach(print)               # 각 Row 처리
+
+# 저장
+df.write.parquet("output/")     # 파일 저장
+df.write.saveAsTable("table")   # 테이블 저장
+```
+
+- 종류
+ 
+| 분류 | 연산 | 리턴 타입 | 용도 |
+| :--- | :--- | :--- | :--- |
+| **수집** | `collect()` | `List[Row]` | 전체 데이터를 드라이버 메모리로 수집 (대용량 시 위험) |
+| **수집** | `take(n)` | `List[Row]` | 상위 n개의 데이터만 수집 |
+| **수집** | `first()` | `Row` | 첫 번째 로우(Row) 반환 |
+| **수집** | `head(n)` | `List[Row]` | 상위 n개의 로우 수집 |
+| **집계** | `count()` | `Long` | 데이터셋의 전체 레코드 개수 계산 |
+| **집계** | `reduce()` | 단일값 | 데이터를 하나로 합치는 누적 연산 수행 |
+| **집계** | `aggregate()` | 단일값 | 초기값을 이용한 복잡한 다단계 집계 수행 |
+| **출력** | `show(n)` | `None` | 데이터를 표 형태로 콘솔에 출력 (디버깅용) |
+| **출력** | `foreach()` | `None` | 각 로우에 대해 사용자 정의 함수 실행 |
+| **저장** | `write.parquet()` | `None` | 데이터를 Parquet 형식 파일로 저장 |
+| **저장** | `write.csv()` | `None` | 데이터를 CSV 형식 파일로 저장 |
+| **저장** | `saveAsTable()` | `None` | 데이터를 Hive 메타스토어 등에 테이블로 저장 |
+
+<br><br><br>  
+
+### 기타 
+> 하둡에도 트랜스포메이션이 되나? 안됨. 하둡에서 보완하기 위해 나온게 트랜스포메이션/액션임 
+```
+Hadoop MapReduce의 한계
+- 매 연산마다 디스크 I/O 발생
+- 중간 결과를 HDFS에 저장 → 읽기 반복
+- 최적화 불가능 (각 단계가 독립적)
+
+Spark의 해결책: Lazy Evaluation
+
+Transformation은 실행 계획만 기록
+- Action 호출 시점에 전체 최적화
+- 불필요한 연산 제거 가능
+- 메모리 기반 파이프라인 실행
+
+왜 이렇게 하나: 전체 흐름을 보고 최적화하려면 실행을 미뤄야 함
+```
+
+
