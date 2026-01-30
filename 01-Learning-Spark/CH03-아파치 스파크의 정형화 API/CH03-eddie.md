@@ -112,6 +112,7 @@ RDD
 - SparkSession 추가 (DataFrame용)
 - SparkContext는 SparkSession 내부에 포함
 - 하위 호환성 유지
+  
 **RDD 사용 방법1:**
 ```
 from pyspark import SparkContext, SparkConf
@@ -202,3 +203,94 @@ data_df = spark.createDataFrame([("Brooke", 20), ("Denny", 31), ("Jules", 30), (
 avg_df = data_df.groupBy('name').agg(avg('age'))
 avg_df.show()
 ```
+---
+<br><br><br>
+
+# 02. 데이터프레임 API
+
+## (1) 데이터프레임
+```
+  R의 data.frame (1990년대) → Pandas DataFrame (2008) → Spark DataFrame (2014)
+```
+- 분산 인메모리 테이블처럼 동작  
+- 컬럼별 데이터 타입 지정 가능 → RDD는 타입정보 없었음.  
+- 불변성 - 원본유지 ex) replace=TRUE
+
+## (2) 구조
+### 구성요소
+- 스키마  
+- 데이터  
+```
+스키마:
+- name: string
+- age: int
+- job: string
+
+데이터:
+Row(name='Alice', age=25, job='Engineer')
+Row(name='Bob', age=30, job='Manager')
+```
+### 생성방법  
+- 방법 1: 리스트에서 생성
+```
+data = [
+    ("Brooke", 20),
+    ("Denny", 31)
+]
+
+df = spark.createDataFrame(data, ["name", "age"])
+```
+- 방법 2: 파일에서 읽기
+```
+# CSV
+df = spark.read.csv("data.csv", header=True, inferSchema=True)
+
+# Parquet
+df = spark.read.parquet("data.parquet")
+
+# JSON
+df = spark.read.json("data.json")
+```
+-  Pandas에서 변환
+```
+import pandas as pd
+
+pandas_df = pd.DataFrame({
+    'name': ['Alice', 'Bob'],
+    'age': [25, 30]
+})
+
+spark_df = spark.createDataFrame(pandas_df)
+```
+### 주요 DataFrame API 구성
+```
+생성: createDataFrame, read.csv, read.parquet
+조회: select, show, printSchema
+필터: filter, where
+변환: withColumn, withColumnRenamed, drop
+집계: groupBy, agg, avg, sum, count
+정렬: orderBy
+결합: join
+SQL: createOrReplaceTempView, sql
+저장: write.csv, write.parquet
+```
+<br><br>
+
+## (2)데이터 타입
+- Spark는 자체 타입 시스템 보유
+- Python/Java 타입을 Spark 타입으로 변환해서 처리  
+
+### 1단계: 타입 시스템 개요
+발생 배경
+문제
+
+Python: int, str, list
+Java: Integer, String, ArrayList
+Scala: Int, String, List
+각 언어마다 타입 다름
+
+해결책
+
+Spark 자체 타입 정의
+모든 언어를 Spark 타입으로 통일
+JVM에서 실행되므로 Java 기반
