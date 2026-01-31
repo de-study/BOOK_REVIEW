@@ -241,7 +241,7 @@ blog_row[1]
 spark.read.csv() 함수는 CSV 파일을 읽어서 row 객체와 스키마에 맞는 타입의 이름 있는 칼럼들로 이루어진 데이터 프레임을 되돌려 준다.
 
 데이터 프레임을 파케이 파일이나 SQL 테이블로 저장하기
-
+```python
 #파이썬에서 파케이로 저장
 parquet_path = ... 
 fireDF.write.format("parquet").save(parquet_path)
@@ -249,7 +249,7 @@ fireDF.write.format("parquet").save(parquet_path)
 #테이블로 저장
 parquet_table = ...# 테이블 이름
 fire_df.write.format("parquet").saveAsTable(parquet_table)
-
+```
 
 
 
