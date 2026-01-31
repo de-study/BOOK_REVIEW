@@ -725,6 +725,138 @@ df.select(col("address.city"), col("address.zip"))
 df.select(col("address").getField("city"))
 ```
 
+---
+
+### 자주 쓰이는 데이터 프레임 작업들
+
+**DataFrameReader와 DataFrameWriter**
+- 다양한 데이터 소스(Json,csv,parquet,avro,orc) 읽기 → DataFrameReader로 통합
+- 다양한 데이터 소스(Json,csv,parquet,avro,orc) 읽기 → DataFrameWriter로 통합
+
+```python
+# 데이터 불러오기 예제 - 샌프란시스코 소방서 데이터
+fire_df = spark.read.csv('sf-fire-calls.csv', header=True)
+fire_df.show(5)
+```
+
+**프로젝션과 필터**
+
+- **프로젝션(projection)** : 특정 관계 상태와 매치되는 행들만 되돌려 주는 방법
+    - .select() 뒤에 .where() or .filter() 를 이용하여 사용.
+
+```python
+# CallType이 "Medical Incident"가 아닌 데이터 필터
+from pyspark.sql.functions import col
+few_fire_df = (fire_df
+               .select("IncidentNumber", "AvailableDtTM", "CallType")
+               .where(col("CallType") != "Medical Incident"))
+few_fire_df.show(5, truncate=False)
+```
+
+```python
+# CallType의 종류가 몇 가지인지 세어주는 코드
+(fire_df.select("CallType")
+ .where(col("CallType").isNotNull())
+ .agg(countDistinct("CallType").alias("DistinctCallTypes"))
+ .show()
+ )
+```
+
+```python
+# 모든 행에서 null이 아닌 개별 CallType을 추출
+(fire_df
+ .select("CallType")
+ .where(col("CallType").isNotNull())
+ .distinct()
+ .show(10, False)
+ )
+```
+
+**칼럼의 이름 변경 및 추가 삭제**
+
+- withColumnRenamed()
+
+```python
+new_fire_df = fire_df.withColumnRenamed("Delay", "changeDelay")
+new_fire_df.select("changeDelay").show(5)
+```
+
+<aside>
+💡 데이터 프레임 변형은 변경 불가 방식으로 동작하므로 withColumnsRenamed()로 칼럼 이름을 변경할 때는, 기존 칼럼 이름을 갖고 있는 원본을 유지한 채로 칼럼 이름이 변경된 새로운 데이터 프레임을 받아 오게 된다.
+
+</aside>
+
+**칼럼의 데이터 타입 변경**
+
+- to_timestamp(), to_date()
+    - 변경 코드
+    
+    ```python
+    fire_ts_df = (new_fire_df
+                  .withColumn("IncidentDate", to_timestamp(col("CallDate"), "MM/dd/yyyy"))
+                  .drop("CallDate")
+                  .withColumn("OnWatchDate", to_timestamp(col("WatchDate"), "MM/dd/yyyy"))
+                  .drop("WatchDate")
+                  .withColumn("AvailableDtTs", to_timestamp(col("AvailableDtTm"), "MM/dd/yyyy hh:mm:ss a"))
+                  .drop("AvailableDtTm"))
+    ```
+    
+    
+    - 데이터 타입이 수정된 날짜/시간 칼럼을 가지게 되었으므로, 이후 데이터 탐색 과정에서 spark.sql.functions의 dayofmonth(), dayofyear(), dayofweek() 와 같은 함수를 이용하여 질의할 수 있다.
+
+**집계연산**
+
+- groupBy(), orderBy(), count()
+
+```python
+# CallType의 집계
+(fire_ts_df
+ .select("CallType")
+ .where(col("CallType").isNotNull())
+ .groupBy("CallType")
+ .count()
+ .orderBy("count", ascending = False)
+ .show(n = 10, truncate = False))
+```
+
+### 정적타입, 동적타입 
+- scala, java - 데이터프레임, 데이터세트 API 사용가능
+- python - 데이터프레임 API 사용가능
+
+Spark 코어 엔진:
+100% Scala로 작성됨
+JVM 위에서 실행됨
+Catalyst optimizer, DAG scheduler 모두 Scala 코드
+
+그런데 왜 Python으로 쓸 수 있나?
+Python은 '클라이언트'일 뿐
+실제 연산은 JVM에서 일어남
+Python ↔ JVM 사이에 통신 레이어(Py4J) 존재
+
+
+### 카탈리스트 옵티마이저
+
+- 연산 쿼리를 받아 실행 계획으로 변환한다. 이는 다음의 4단계를 거친다.
+    
+1. **분석**
+    - 추상 문법 트리(abstract syntax tree) 생성
+2. **논리적 최적화**
+    - 비용 기반 옵티마이저(cost based optimizer, CBO)를 사용하여 각 계획에 비용을 책정. 이는 연산 트리들로 배열됨.
+    - 조건절 하부 배치, 칼럼 걸러내기, Boolean 연산 단순화 등을 포함
+3. **물리 계획 수립**
+    - 논리 계획을 바탕으로 대응되는 물리적 연산자를 사용하여 최적화된 물리 계획을 생성
+4. **코드 생성**
+    - 실제로 실행할 자바 바이트 코드를 생성
+    - 실행 속도를 높이기 위한 코드 생성을 위해 최신 컴파일러 기술을 사용함. 다시 말하자면 스파크는 컴파일러처럼 동작한다고 할 수 있음.
+    - 포괄 코드 생성을 가능하게 하는 텅스텐이 사용된다.
+    
+    <aside>
+    💡 포괄 코드(whole-stage) 생성
+    
+    - 물리적 쿼리 최적화 단계로 전체 쿼리를 하나의 함수로 합치면서 가상 함수 호출이나 중간 데이터를 위한 CPU 레지스터 사용을 없애버림.
+    </aside>
+    
+
 
 
 
