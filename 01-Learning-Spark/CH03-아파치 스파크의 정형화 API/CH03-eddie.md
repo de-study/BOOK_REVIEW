@@ -823,15 +823,15 @@ new_fire_df.select("changeDelay").show(5)
 - scala, java - 데이터프레임, 데이터세트 API 사용가능
 - python - 데이터프레임 API 사용가능
 
-Spark 코어 엔진:
-100% Scala로 작성됨
-JVM 위에서 실행됨
-Catalyst optimizer, DAG scheduler 모두 Scala 코드
+**Spark 코어 엔진:**
+- 100% Scala로 작성됨  
+- JVM 위에서 실행됨  
+- Catalyst optimizer, DAG scheduler 모두 Scala 코드  
 
-그런데 왜 Python으로 쓸 수 있나?
-Python은 '클라이언트'일 뿐
-실제 연산은 JVM에서 일어남
-Python ↔ JVM 사이에 통신 레이어(Py4J) 존재
+**그런데 왜 Python으로 쓸 수 있나?**
+- Python은 '클라이언트'일 뿐
+- 실제 연산은 JVM에서 일어남
+- Python ↔ JVM 사이에 통신 레이어(Py4J) 존재
 
 
 ### 카탈리스트 옵티마이저
